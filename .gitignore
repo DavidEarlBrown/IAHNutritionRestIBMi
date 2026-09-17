@@ -1,0 +1,26 @@
+target/
+!.mvn/wrapper/maven-wrapper.jar
+.mvn/wrapper/maven-wrapper.properties.bak
+
+### IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.classpath
+.project
+.settings/
+.vscode/
+*.swp
+.DS_Store
+
+### Runtime
+*.log
+logs/
+application-local.properties
+.env
+
+### H2
+*.db
+*.trace.db
+*.lock.db

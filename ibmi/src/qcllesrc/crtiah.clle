@@ -1,0 +1,49 @@
+             PGM        PARM(&SRCROOT)
+
+             DCL        VAR(&SRCROOT) TYPE(*CHAR) LEN(128)
+             DCL        VAR(&ROOT) TYPE(*CHAR) LEN(128)
+
+             CHGVAR     VAR(&ROOT) VALUE(&SRCROOT)
+             IF         COND(&ROOT *EQ ' ') THEN(CHGVAR VAR(&ROOT) +
+                          VALUE('/iah/nutrition/ibmi/src'))
+
+             CRTLIB     LIB(IAHNUTSRC) TEXT('IAH Nutrition RPG source/objects')
+             MONMSG     MSGID(CPF2111)
+
+             CRTRPGMOD  MODULE(IAHNUTSRC/IAHCGI) +
+                          SRCSTMF(&ROOT *TCAT '/qrpglesrc/iahcgi.rpgle') +
+                          DBGVIEW(*SOURCE)
+
+             CRTSQLRPGI OBJ(IAHNUTSRC/IAHNUTD) +
+                          SRCSTMF(&ROOT *TCAT '/qrpglesrc/iahnutd.rpgle') +
+                          OBJTYPE(*MODULE) COMMIT(*CHG) RPGPPOPT(*LVL2)
+             CRTSQLRPGI OBJ(IAHNUTSRC/IAHINGD) +
+                          SRCSTMF(&ROOT *TCAT '/qrpglesrc/iahingd.rpgle') +
+                          OBJTYPE(*MODULE) COMMIT(*CHG) RPGPPOPT(*LVL2)
+             CRTSQLRPGI OBJ(IAHNUTSRC/IAHCLID) +
+                          SRCSTMF(&ROOT *TCAT '/qrpglesrc/iahclid.rpgle') +
+                          OBJTYPE(*MODULE) COMMIT(*CHG) RPGPPOPT(*LVL2)
+             CRTSQLRPGI OBJ(IAHNUTSRC/IAHSPECD) +
+                          SRCSTMF(&ROOT *TCAT '/qrpglesrc/iahspecd.rpgle') +
+                          OBJTYPE(*MODULE) COMMIT(*CHG) RPGPPOPT(*LVL2)
+             CRTSQLRPGI OBJ(IAHNUTSRC/IAHREQD) +
+                          SRCSTMF(&ROOT *TCAT '/qrpglesrc/iahreqd.rpgle') +
+                          OBJTYPE(*MODULE) COMMIT(*CHG) RPGPPOPT(*LVL2)
+             CRTSQLRPGI OBJ(IAHNUTSRC/IAHFRMD) +
+                          SRCSTMF(&ROOT *TCAT '/qrpglesrc/iahfrmd.rpgle') +
+                          OBJTYPE(*MODULE) COMMIT(*CHG) RPGPPOPT(*LVL2)
+             CRTSQLRPGI OBJ(IAHNUTSRC/IAHRSTD) +
+                          SRCSTMF(&ROOT *TCAT '/qrpglesrc/iahrstd.rpgle') +
+                          OBJTYPE(*MODULE) COMMIT(*CHG) RPGPPOPT(*LVL2)
+
+             CRTSRVPGM  SRVPGM(IAHNUTSRC/IAHDATA) +
+                          MODULE(IAHNUTSRC/IAHCGI IAHNUTSRC/IAHNUTD +
+                          IAHNUTSRC/IAHINGD IAHNUTSRC/IAHCLID +
+                          IAHNUTSRC/IAHSPECD IAHNUTSRC/IAHREQD +
+                          IAHNUTSRC/IAHFRMD) +
+                          SRCSTMF(&ROOT *TCAT '/qsrvsrc/iahdata.bnd')
+
+             CRTPGM     PGM(IAHNUTSRC/IAHRSTD) MODULE(IAHNUTSRC/IAHRSTD) +
+                          BNDSRVPGM(IAHNUTSRC/IAHDATA) ACTGRP(IAHNUTR)
+
+             ENDPGM

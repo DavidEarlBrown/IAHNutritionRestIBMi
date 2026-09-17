@@ -1,0 +1,8 @@
+iah:
+  nutrition:
+    data:
+      base-url: http://127.0.0.1:{port}/data
+
+logging:
+  level:
+    com.iah.nutrition: INFO
