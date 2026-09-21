@@ -170,6 +170,7 @@ dcl-pr iahFormulaList varchar(1000000) ccsid(1208) extproc('iahFormulaList');
   clientId packed(15:0) const;
   speciesId packed(15:0) const;
   stageId packed(15:0) const;
+  formulaStatus varchar(16) const;
   httpStatus int(10);
 end-pr;
 dcl-pr iahFormulaGet varchar(1000000) ccsid(1208) extproc('iahFormulaGet');
@@ -178,6 +179,14 @@ dcl-pr iahFormulaGet varchar(1000000) ccsid(1208) extproc('iahFormulaGet');
 end-pr;
 dcl-pr iahFormulaCreate varchar(1000000) ccsid(1208) extproc('iahFormulaCreate');
   request varchar(1000000) ccsid(1208) const;
+  httpStatus int(10);
+end-pr;
+dcl-pr iahClientFormulasHdrList varchar(1000000) ccsid(1208) extproc('iahClientFormulasHdrList');
+  clientId packed(15:0) const;
+  httpStatus int(10);
+end-pr;
+dcl-pr iahClientFormulasHdrGet varchar(1000000) ccsid(1208) extproc('iahClientFormulasHdrGet');
+  id packed(15:0) const;
   httpStatus int(10);
 end-pr;
 
@@ -313,6 +322,7 @@ dcl-proc iahRestMain;
               iahQueryNum(query: 'clientId'):
               iahQueryNum(query: 'speciesId'):
               iahQueryNum(query: 'stageId'):
+              iahQuery(query: 'status'):
               status);
     when res = 'formulas' and seg2 = '' and method = 'POST';
       out = iahFormulaCreate(body: status);
@@ -321,6 +331,11 @@ dcl-proc iahRestMain;
       endif;
     when res = 'formulas' and method = 'GET';
       out = iahFormulaGet(%dec(seg2:15:0): status);
+
+    when res = 'client-formulas-hdr' and seg2 = '' and method = 'GET';
+      out = iahClientFormulasHdrList(iahQueryNum(query: 'clientId'): status);
+    when res = 'client-formulas-hdr' and method = 'GET';
+      out = iahClientFormulasHdrGet(%dec(seg2:15:0): status);
 
     other;
       status = 404;

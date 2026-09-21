@@ -40,4 +40,6 @@ STRPGMEXP PGMLVL(*CURRENT)
   EXPORT SYMBOL(iahFormulaList)
   EXPORT SYMBOL(iahFormulaGet)
   EXPORT SYMBOL(iahFormulaCreate)
+  EXPORT SYMBOL(iahClientFormulasHdrList)
+  EXPORT SYMBOL(iahClientFormulasHdrGet)
 ENDPGMEXP

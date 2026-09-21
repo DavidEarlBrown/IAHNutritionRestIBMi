@@ -2,6 +2,7 @@ package com.iah.nutrition.web;
 
 import com.iah.nutrition.data.RpgDataStore;
 import com.iah.nutrition.dto.ClientDto;
+import com.iah.nutrition.dto.ClientFormulasHdr;
 import com.iah.nutrition.dto.FormulaDto;
 import com.iah.nutrition.dto.IngredNutDto;
 import com.iah.nutrition.dto.IngredientDto;
@@ -227,9 +228,10 @@ public class LocalRpgDataController {
     public List<FormulaDto> listFormulas(
             @RequestParam(required = false) Long clientId,
             @RequestParam(required = false) Long speciesId,
-            @RequestParam(required = false) Long stageId
+            @RequestParam(required = false) Long stageId,
+            @RequestParam(required = false) String status
     ) {
-        return store.listFormulas(clientId, speciesId, stageId);
+        return store.listFormulas(clientId, speciesId, stageId, status);
     }
 
     @GetMapping("/formulas/{id}")
@@ -241,5 +243,15 @@ public class LocalRpgDataController {
     @ResponseStatus(HttpStatus.CREATED)
     public FormulaDto createFormula(@RequestBody FormulaDto dto) {
         return store.createFormula(dto);
+    }
+
+    @GetMapping("/client-formulas-hdr")
+    public List<ClientFormulasHdr> listClientFormulasHdr(@RequestParam(required = false) Long clientId) {
+        return store.listClientFormulasHdr(clientId);
+    }
+
+    @GetMapping("/client-formulas-hdr/{id}")
+    public ClientFormulasHdr getClientFormulasHdr(@PathVariable Long id) {
+        return store.getClientFormulasHdr(id);
     }
 }

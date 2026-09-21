@@ -3,6 +3,7 @@ package com.iah.nutrition.service;
 import com.iah.nutrition.config.NutritionProperties;
 import com.iah.nutrition.data.NutritionDataClient;
 import com.iah.nutrition.dto.ClientDto;
+import com.iah.nutrition.dto.ClientFormulasHdr;
 import com.iah.nutrition.dto.FormulaDto;
 import com.iah.nutrition.dto.FormulaIngredientDto;
 import com.iah.nutrition.dto.FormulaNutrientDto;
@@ -64,8 +65,20 @@ public class OptimizationService {
         return dataClient.getFormula(id);
     }
 
-    public List<FormulaDto> listFormulas(Long clientId, Long speciesId, Long stageId) {
-        return dataClient.listFormulas(clientId, speciesId, stageId);
+    public List<FormulaDto> listFormulas(Long clientId, Long speciesId, Long stageId, String status) {
+        return dataClient.listFormulas(clientId, speciesId, stageId, status);
+    }
+
+    public FormulaDto createFormula(FormulaDto dto) {
+        return dataClient.createFormula(dto);
+    }
+
+    public List<ClientFormulasHdr> listClientFormulasHdr(Long clientId) {
+        return dataClient.listClientFormulasHdr(clientId);
+    }
+
+    public ClientFormulasHdr findClientFormulasHdr(Long formulaId) {
+        return dataClient.getClientFormulasHdr(formulaId);
     }
 
     private RequirementSetDto resolveRequirements(OptimizationRequest request) {
@@ -208,7 +221,7 @@ public class OptimizationService {
             totalCost = totalCost.add(cost);
             formulaIngredients.add(new FormulaIngredientDto(
                     ingredient.id(), ingredient.code(), ingredient.name(),
-                    frac, frac.multiply(BigDecimal.valueOf(100)), amount, price, cost
+                    frac, frac.multiply(BigDecimal.valueOf(100)), amount, price, price, cost
             ));
         }
 
@@ -237,6 +250,7 @@ public class OptimizationService {
                 name,
                 request.clientId(),
                 clientName,
+                FormulaDto.STATUS_OPTIMIZED,
                 species.id(),
                 species.code(),
                 stage.id(),

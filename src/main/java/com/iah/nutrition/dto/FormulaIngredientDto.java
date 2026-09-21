@@ -10,6 +10,15 @@ public record FormulaIngredientDto(
         BigDecimal inclusionPct,
         BigDecimal amountKg,
         BigDecimal priceUsed,
+        BigDecimal lastPrice,
         BigDecimal cost
 ) {
+    public FormulaIngredientDto {
+        if (lastPrice == null) {
+            lastPrice = priceUsed;
+        }
+        if (priceUsed == null) {
+            priceUsed = lastPrice;
+        }
+    }
 }

@@ -20,7 +20,7 @@ Db2 library IAHNUTR
 
 RPG source: `ibmi/` (compile with `CRTIAH`)  
 Java source: this Git repo / IFS  
-Tables: `src/main/resources/db/schema-ibmi.sql`
+Tables: `src/main/resources/db/schema-ibmi.sql` (client formula library: `FORMULA`, `FORMULA_INGREDIENT`, `CLIENT_FORMULAS_HDR`)
 
 ## Local run
 
@@ -36,7 +36,7 @@ mvn spring-boot:run
 
 ## IBM i
 
-1. Create `IAHNUTR` with `schema-ibmi.sql`.
+1. Create `IAHNUTR` with `schema-ibmi.sql` (or apply `schema-client-formula.sql` if the library already exists).
 2. Copy `ibmi/` to the IFS and run `CALL IAHNUTSRC/CRTIAH` (see `ibmi/README.md`).
 3. Start Apache with `ibmi/httpd-iahdata.conf`.
 4. Build Java: `mvn -DskipTests package`
@@ -63,6 +63,6 @@ curl -s -X POST http://localhost:8080/api/optimize \
   }'
 ```
 
-Java loads ingredients and requirements from RPG (or `/data`), solves, then `POST /formulas` as one document so RPG can commit header + lines together.
+Java loads ingredients and requirements from RPG (or `/data`), solves, then `POST /formulas` as one document so RPG can commit header + lines together. Saved formulas are the client formula library: `OPTIMIZED` (solver output) or `PREFIXED` (hand-built). Omit `clientId` to store a general formula on the `DEFAULT` client. Each ingredient line keeps `lastPrice`. `GET /api/client-formulas-hdr` lists `CLIENT_FORMULAS_HDR` (`CLTFMHDR`): client, formula, description, last price, animal, and optimization technique.
 
 `INGREDNUT` is the dense ingredient × nutrient matrix (one row per pair, amount `0` if unknown). RPG fills missing rows when ingredients or nutrients are created; `GET /api/ingrednut` lists the matrix.

@@ -1,6 +1,7 @@
 package com.iah.nutrition.data;
 
 import com.iah.nutrition.dto.ClientDto;
+import com.iah.nutrition.dto.ClientFormulasHdr;
 import com.iah.nutrition.dto.FormulaDto;
 import com.iah.nutrition.dto.IngredNutDto;
 import com.iah.nutrition.dto.IngredientDto;
@@ -83,9 +84,13 @@ public interface NutritionDataClient {
 
     void deleteRequirement(Long id);
 
-    List<FormulaDto> listFormulas(Long clientId, Long speciesId, Long stageId);
+    List<FormulaDto> listFormulas(Long clientId, Long speciesId, Long stageId, String status);
 
     FormulaDto getFormula(Long id);
 
     FormulaDto createFormula(FormulaDto dto);
+
+    List<ClientFormulasHdr> listClientFormulasHdr(Long clientId);
+
+    ClientFormulasHdr getClientFormulasHdr(Long formulaId);
 }

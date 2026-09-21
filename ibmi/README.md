@@ -9,7 +9,7 @@ Java does **not** talk to Db2. ILE RPG CGI program `IAHRSTD` is the only reader/
 | `ibmi/src/qrpglesrc/*.rpgle` | modules in `IAHNUTSRC` | SQL CRUD + CGI |
 | `ibmi/src/qsrvsrc/iahdata.bnd` | `IAHDATA` *SRVPGM | exported procedures |
 | `ibmi/src/qrpglesrc/iahrstd.rpgle` | `IAHRSTD` *PGM | REST router |
-| `src/main/resources/db/schema-ibmi.sql` | library `IAHNUTR` | tables |
+| `src/main/resources/db/schema-ibmi.sql` | library `IAHNUTR` | tables, including client formulas |
 
 ## Build
 
@@ -18,7 +18,7 @@ CRTCLPGM PGM(IAHNUTSRC/CRTIAH) SRCSTMF('/iah/nutrition/ibmi/src/qcllesrc/crtiah.
 CALL IAHNUTSRC/CRTIAH PARM('/iah/nutrition/ibmi/src')
 ```
 
-Create tables first with `schema-ibmi.sql` (and optional `seed-data.sql`).
+Create tables first with `schema-ibmi.sql` (and optional `seed-data.sql`). Existing libraries can apply `schema-client-formula.sql` instead of recreating `IAHNUTR`.
 
 ## HTTP Server
 
@@ -37,7 +37,10 @@ ScriptAlias /iahdata /qsys.lib/iahnutsrc.lib/iahrstd.pgm
 | GET | `/iahdata/ingrednut` | full ingredient × nutrient matrix (`?ingredientId=` optional) |
 | GET | `/iahdata/ingredients/{id}/ingrednut` | matrix rows for one ingredient |
 | GET | `/iahdata/ingredients?view=full` | catalog with composition |
-| POST | `/iahdata/formulas` | save whole formula (one commit) |
+| GET | `/iahdata/formulas?clientId=&speciesId=&stageId=&status=` | list client formulas (`OPTIMIZED` / `PREFIXED`; a specific client also sees `DEFAULT` general formulas) |
+| POST | `/iahdata/formulas` | save whole formula (one commit). Omit `clientId` for the `DEFAULT` client |
+| GET | `/iahdata/client-formulas-hdr?clientId=` | list `CLIENT_FORMULAS_HDR` (client, formula, description, last price, animal, technique) |
+| GET | `/iahdata/client-formulas-hdr/{id}` | one header by formula id |
 
 Java IBM i profile:
 

@@ -23,6 +23,7 @@ dcl-proc iahClientList export;
                'postalCode' value trim(postal_code),
                'country' value trim(country),
                'notes' value trim(notes),
+               'isDefault' value case when is_default = 1 then true else false end,
                'active' value case when active = 1 then true else false end
                absent on null
              ) order by name
@@ -55,6 +56,7 @@ dcl-proc iahClientGet export;
              'postalCode' value trim(postal_code),
              'country' value trim(country),
              'notes' value trim(notes),
+             'isDefault' value case when is_default = 1 then true else false end,
              'active' value case when active = 1 then true else false end
              absent on null
            )
@@ -85,14 +87,17 @@ dcl-proc iahClientCreate export;
   dcl-s postal varchar(16);
   dcl-s country varchar(64);
   dcl-s notes varchar(512);
+  dcl-s isDefFlag varchar(8);
+  dcl-s isDef packed(1:0);
   dcl-s newId packed(15:0);
 
   exec sql set schema IAHNUTR;
   exec sql
     select upper(x.code), x.name, x.contactName, x.phone, x.email,
-           x.address, x.city, x.state, x.postalCode, x.country, x.notes
+           x.address, x.city, x.state, x.postalCode, x.country, x.notes,
+           x.isDefault
       into :code, :name, :contact, :phone, :email, :address, :city, :state,
-           :postal, :country, :notes
+           :postal, :country, :notes, :isDefFlag
       from json_table(:request, '$'
            columns (
              code varchar(32) path '$.code',
@@ -105,14 +110,22 @@ dcl-proc iahClientCreate export;
              state varchar(64) path '$.state',
              postalCode varchar(16) path '$.postalCode',
              country varchar(64) path '$.country',
-             notes varchar(512) path '$.notes'
+             notes varchar(512) path '$.notes',
+             isDefault varchar(8) path '$.isDefault'
            )) as x;
+
+  if %upper(%trim(isDefFlag)) = 'TRUE' or %trim(isDefFlag) = '1';
+    isDef = 1;
+    exec sql update client set is_default = 0 where is_default = 1;
+  else;
+    isDef = 0;
+  endif;
 
   exec sql
     insert into client (code, name, contact_name, phone, email, address,
-                        city, state, postal_code, country, notes)
+                        city, state, postal_code, country, notes, is_default)
     values (:code, :name, :contact, :phone, :email, :address,
-            :city, :state, :postal, :country, :notes);
+            :city, :state, :postal, :country, :notes, :isDef);
   if sqlcode < 0;
     httpStatus = 400;
     return '{"status":400,"message":"Unable to create client"}';
@@ -139,6 +152,9 @@ dcl-proc iahClientUpdate export;
   dcl-s postal varchar(16);
   dcl-s country varchar(64);
   dcl-s notes varchar(512);
+  dcl-s isDefFlag varchar(8);
+  dcl-s isDef packed(1:0);
+  dcl-s oldDef packed(1:0);
 
   dummy = iahClientGet(id: httpStatus);
   if httpStatus = 404;
@@ -146,11 +162,13 @@ dcl-proc iahClientUpdate export;
   endif;
 
   exec sql set schema IAHNUTR;
+  exec sql select is_default into :oldDef from client where client_id = :id;
   exec sql
     select upper(x.code), x.name, x.contactName, x.phone, x.email,
-           x.address, x.city, x.state, x.postalCode, x.country, x.notes
+           x.address, x.city, x.state, x.postalCode, x.country, x.notes,
+           x.isDefault
       into :code, :name, :contact, :phone, :email, :address, :city, :state,
-           :postal, :country, :notes
+           :postal, :country, :notes, :isDefFlag
       from json_table(:request, '$'
            columns (
              code varchar(32) path '$.code',
@@ -163,8 +181,22 @@ dcl-proc iahClientUpdate export;
              state varchar(64) path '$.state',
              postalCode varchar(16) path '$.postalCode',
              country varchar(64) path '$.country',
-             notes varchar(512) path '$.notes'
+             notes varchar(512) path '$.notes',
+             isDefault varchar(8) path '$.isDefault'
            )) as x;
+
+  if %upper(%trim(isDefFlag)) = 'TRUE' or %trim(isDefFlag) = '1';
+    isDef = 1;
+  else;
+    isDef = 0;
+  endif;
+  if oldDef = 1 and isDef = 0;
+    httpStatus = 400;
+    return '{"status":400,"message":"The default client cannot be unset; assign another default first"}';
+  endif;
+  if isDef = 1;
+    exec sql update client set is_default = 0 where is_default = 1;
+  endif;
 
   exec sql
     update client
@@ -179,6 +211,7 @@ dcl-proc iahClientUpdate export;
            postal_code = :postal,
            country = :country,
            notes = :notes,
+           is_default = :isDef,
            updated_at = current_timestamp
      where client_id = :id;
   return iahClientGet(id: httpStatus);
@@ -189,12 +222,18 @@ dcl-proc iahClientDelete export;
     id         packed(15:0) const;
     httpStatus int(10);
   end-pi;
+  dcl-s isDef packed(1:0);
   exec sql set schema IAHNUTR;
-  exec sql delete from client where client_id = :id;
+  exec sql select is_default into :isDef from client where client_id = :id;
   if sqlcode = 100;
     httpStatus = 404;
     return '{"status":404,"message":"Client not found"}';
   endif;
+  if isDef = 1;
+    httpStatus = 400;
+    return '{"status":400,"message":"The default client cannot be deleted"}';
+  endif;
+  exec sql delete from client where client_id = :id;
   httpStatus = 204;
   return '';
 end-proc;

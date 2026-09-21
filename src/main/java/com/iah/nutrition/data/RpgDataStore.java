@@ -1,7 +1,9 @@
 package com.iah.nutrition.data;
 
 import com.iah.nutrition.dto.ClientDto;
+import com.iah.nutrition.dto.ClientFormulasHdr;
 import com.iah.nutrition.dto.FormulaDto;
+import com.iah.nutrition.dto.FormulaIngredientDto;
 import com.iah.nutrition.dto.IngredNutDto;
 import com.iah.nutrition.dto.IngredientDto;
 import com.iah.nutrition.dto.IngredientNutrientDto;
@@ -227,22 +229,35 @@ public class RpgDataStore {
     public synchronized ClientDto createClient(ClientDto dto) {
         String code = upper(dto.code());
         assertUniqueClientCode(code, null);
+        if (Boolean.TRUE.equals(dto.isDefault())) {
+            clearDefaultClients();
+        }
         ClientDto saved = copyClient(clientSeq.incrementAndGet(), dto, code);
         clients.put(saved.id(), saved);
         return saved;
     }
 
     public synchronized ClientDto updateClient(Long id, ClientDto dto) {
-        getClient(id);
+        ClientDto existing = getClient(id);
         String code = upper(dto.code());
         assertUniqueClientCode(code, id);
+        boolean makeDefault = Boolean.TRUE.equals(dto.isDefault());
+        if (Boolean.TRUE.equals(existing.isDefault()) && !makeDefault) {
+            throw new BusinessException("The default client cannot be unset; assign another default first");
+        }
+        if (makeDefault) {
+            clearDefaultClients();
+        }
         ClientDto saved = copyClient(id, dto, code);
         clients.put(id, saved);
         return saved;
     }
 
     public synchronized void deleteClient(Long id) {
-        getClient(id);
+        ClientDto existing = getClient(id);
+        if (Boolean.TRUE.equals(existing.isDefault())) {
+            throw new BusinessException("The default client cannot be deleted");
+        }
         clients.remove(id);
     }
 
@@ -336,11 +351,17 @@ public class RpgDataStore {
         requirements.remove(id);
     }
 
-    public synchronized List<FormulaDto> listFormulas(Long clientId, Long speciesId, Long stageId) {
+    public synchronized List<FormulaDto> listFormulas(Long clientId, Long speciesId, Long stageId, String status) {
+        String wantedStatus = status == null || status.isBlank() ? null : status.trim().toUpperCase(Locale.ROOT);
+        Long defaultClientId = defaultClientId();
+        boolean includeGeneral = clientId != null && !clientId.equals(defaultClientId);
         return formulas.values().stream()
-                .filter(formula -> clientId == null || Objects.equals(formula.clientId(), clientId))
+                .filter(formula -> clientId == null
+                        || Objects.equals(formula.clientId(), clientId)
+                        || (includeGeneral && Objects.equals(formula.clientId(), defaultClientId)))
                 .filter(formula -> speciesId == null || Objects.equals(formula.speciesId(), speciesId))
                 .filter(formula -> stageId == null || Objects.equals(formula.stageId(), stageId))
+                .filter(formula -> wantedStatus == null || wantedStatus.equals(formula.status()))
                 .sorted(Comparator.comparing(FormulaDto::createdAt, Comparator.nullsLast(Comparator.reverseOrder())))
                 .map(this::summary)
                 .toList();
@@ -356,20 +377,31 @@ public class RpgDataStore {
 
     public synchronized FormulaDto createFormula(FormulaDto dto) {
         Long id = formulaSeq.incrementAndGet();
-        String clientName = dto.clientId() == null ? dto.clientName() : getClient(dto.clientId()).name();
+        ClientDto client = resolveFormulaClient(dto.clientId());
         SpeciesDto speciesDto = getSpecies(dto.speciesId());
         StageDto stageDto = getStage(dto.stageId());
+        List<FormulaIngredientDto> ingredients = snapshotIngredients(dto.ingredients());
         FormulaDto saved = new FormulaDto(
-                id, dto.code(), dto.name(), dto.clientId(), clientName,
+                id, dto.code(), dto.name(), client.id(), client.name(), dto.status(),
                 speciesDto.id(), speciesDto.code(), stageDto.id(), stageDto.code(),
                 dto.animalAgeDays(), dto.sex(), dto.breed(), dto.productionLevel(),
                 dto.housing(), dto.environment(), dto.batchWeightKg(), dto.totalCost(),
                 dto.costPerKg(), dto.optimizationType(), dto.solverStatus(), dto.objectiveValue(),
                 dto.notes(), dto.createdAt() == null ? Instant.now() : dto.createdAt(),
-                dto.ingredients(), dto.nutrients()
+                ingredients, dto.nutrients()
         );
         formulas.put(id, saved);
         return saved;
+    }
+
+    public synchronized List<ClientFormulasHdr> listClientFormulasHdr(Long clientId) {
+        return listFormulas(clientId, null, null, null).stream()
+                .map(this::toHeader)
+                .toList();
+    }
+
+    public synchronized ClientFormulasHdr getClientFormulasHdr(Long formulaId) {
+        return toHeader(getFormula(formulaId));
     }
 
     public synchronized void seedIfEmpty() {
@@ -404,19 +436,22 @@ public class RpgDataStore {
         StageDto broiler = createStage(stage(poultry, "BROILER_GR", "Broiler Grower", 15, 28, 0.45, 1.5));
 
         createClient(new ClientDto(null, "DEMO01", "Demo Dairy LLC", "Maria Lopez", null, null, null,
-                "Ames", "IA", null, "USA", null, true));
+                "Ames", "IA", null, "USA", null, false, true));
         createClient(new ClientDto(null, "DEMO02", "Prairie Swine Co", "James Chen", null, null, null,
-                "Sioux Falls", "SD", null, "USA", null, true));
+                "Sioux Falls", "SD", null, "USA", null, false, true));
+        ClientDto defaultClient = createClient(new ClientDto(null, "DEFAULT", "Default (general formulas)",
+                null, null, null, null, null, null, null, null,
+                "Owner for catalog formulas shared across clients", true, true));
 
-        seedIngredient(n, "CORN", "Corn grain", "ENERGY", 0.22, 0, 0.70, 0.02,
+        IngredientDto corn = seedIngredient(n, "CORN", "Corn grain", "ENERGY", 0.22, 0, 0.70, 0.02,
                 Map.of("DM", 86, "CP", 8.3, "ME", 3350, "NEL", 1.98, "NDF", 9.5, "EE", 3.6, "CA", 0.03, "P", 0.28, "LYS", 0.24, "MET", 0.17));
-        seedIngredient(n, "SBM48", "Soybean meal 48%", "PROTEIN", 0.48, 0, 0.40, 0.04,
+        IngredientDto sbm = seedIngredient(n, "SBM48", "Soybean meal 48%", "PROTEIN", 0.48, 0, 0.40, 0.04,
                 Map.of("DM", 89, "CP", 47.5, "ME", 2450, "NEL", 2.10, "NDF", 9.8, "EE", 1.5, "CA", 0.35, "P", 0.69, "LYS", 2.96, "MET", 0.67));
         seedIngredient(n, "WHEATBR", "Wheat bran", "FIBER", 0.18, 0, 0.25, 0.01,
                 Map.of("DM", 89, "CP", 15.5, "ME", 2300, "NEL", 1.54, "NDF", 42, "EE", 4.0, "CA", 0.13, "P", 1.18, "LYS", 0.64));
-        seedIngredient(n, "ALFALFA", "Alfalfa hay", "FORAGE", 0.26, 0, 0.50, 0.01,
+        IngredientDto alfalfa = seedIngredient(n, "ALFALFA", "Alfalfa hay", "FORAGE", 0.26, 0, 0.50, 0.01,
                 Map.of("DM", 90, "CP", 18.0, "ME", 2100, "NEL", 1.30, "NDF", 42, "CA", 1.40, "P", 0.24));
-        seedIngredient(n, "CORNSIL", "Corn silage", "FORAGE", 0.08, 0, 0.55, 0.005,
+        IngredientDto cornSil = seedIngredient(n, "CORNSIL", "Corn silage", "FORAGE", 0.08, 0, 0.55, 0.005,
                 Map.of("DM", 35, "CP", 8.5, "ME", 1050, "NEL", 0.72, "NDF", 45, "CA", 0.25, "P", 0.22));
         seedIngredient(n, "SOYOIL", "Soybean oil", "FAT", 1.10, 0, 0.06, 0.20,
                 Map.of("DM", 99, "ME", 8800, "NEL", 5.65, "EE", 99));
@@ -426,7 +461,7 @@ public class RpgDataStore {
                 Map.of("DM", 96, "CA", 22, "P", 19.3));
         seedIngredient(n, "SALT", "Salt", "MINERAL", 0.12, 0, 0.02, 0,
                 Map.of("DM", 99, "NA", 39.3, "SALT", 100));
-        seedIngredient(n, "PREMIX", "Vitamin/mineral premix", "PREMIX", 2.40, 0.002, 0.01, 0, Map.of("DM", 98));
+        IngredientDto premix = seedIngredient(n, "PREMIX", "Vitamin/mineral premix", "PREMIX", 2.40, 0.002, 0.01, 0, Map.of("DM", 98));
         seedIngredient(n, "BARLEY", "Barley grain", "ENERGY", 0.24, 0, 0.40, 0.02,
                 Map.of("DM", 88, "CP", 11.5, "ME", 3050, "NEL", 1.86, "NDF", 18, "CA", 0.06, "P", 0.35, "LYS", 0.40));
         seedIngredient(n, "FISHML", "Fish meal", "PROTEIN", 1.35, 0, 0.08, 0.10,
@@ -447,9 +482,11 @@ public class RpgDataStore {
                 List.of(line(n, "CP", 19, 22, 20.5), line(n, "ME", 3000, 3200, 3100),
                         line(n, "LYS", 1.05, 1.30, 1.15), line(n, "MET", 0.45, 0.60, 0.50),
                         line(n, "CA", 0.80, 1.10, 0.90), line(n, "P", 0.40, 0.65, 0.45))));
+
+        createFormula(prefixedFormula(defaultClient, cattle, lactating, corn, sbm, alfalfa, cornSil, premix));
     }
 
-    private void seedIngredient(
+    private IngredientDto seedIngredient(
             Map<String, NutrientDto> nutrientMap,
             String code,
             String name,
@@ -467,9 +504,47 @@ public class RpgDataStore {
                             nutrient.unit(), BigDecimal.valueOf(entry.getValue().doubleValue()));
                 })
                 .toList();
-        createIngredient(new IngredientDto(null, code, name, category, BigDecimal.valueOf(price), "USD/kg",
+        return createIngredient(new IngredientDto(null, code, name, category, BigDecimal.valueOf(price), "USD/kg",
                 null, null, BigDecimal.valueOf(min), BigDecimal.valueOf(max), BigDecimal.valueOf(quadratic),
                 null, null, true, rows, List.of()));
+    }
+
+    private FormulaDto prefixedFormula(
+            ClientDto client,
+            SpeciesDto speciesDto,
+            StageDto stage,
+            IngredientDto corn,
+            IngredientDto sbm,
+            IngredientDto alfalfa,
+            IngredientDto cornSil,
+            IngredientDto premix
+    ) {
+        List<FormulaIngredientDto> lines = List.of(
+                prefixedLine(corn, 0.42, 1000),
+                prefixedLine(sbm, 0.18, 1000),
+                prefixedLine(alfalfa, 0.22, 1000),
+                prefixedLine(cornSil, 0.16, 1000),
+                prefixedLine(premix, 0.02, 1000)
+        );
+        BigDecimal total = lines.stream().map(FormulaIngredientDto::cost).reduce(BigDecimal.ZERO, BigDecimal::add);
+        return new FormulaDto(
+                null, "PFX-LAC-1", "Prefixed lactating mix", client.id(), client.name(), FormulaDto.STATUS_PREFIXED,
+                speciesDto.id(), speciesDto.code(), stage.id(), stage.code(), 1200, "F", "Holstein", "HIGH",
+                "FREE_STALL", "TEMPERATE", BigDecimal.valueOf(1000), total,
+                total.divide(BigDecimal.valueOf(1000), 6, java.math.RoundingMode.HALF_UP),
+                "NONE", "NONE", null, "Hand-built catalog formula", Instant.now(), lines, List.of()
+        );
+    }
+
+    private FormulaIngredientDto prefixedLine(IngredientDto ingredient, double frac, double batchKg) {
+        BigDecimal fraction = BigDecimal.valueOf(frac);
+        BigDecimal amount = fraction.multiply(BigDecimal.valueOf(batchKg));
+        BigDecimal cost = amount.multiply(ingredient.price());
+        return new FormulaIngredientDto(
+                ingredient.id(), ingredient.code(), ingredient.name(),
+                fraction, fraction.multiply(BigDecimal.valueOf(100)), amount,
+                ingredient.price(), ingredient.price(), cost
+        );
     }
 
     private StageDto stage(SpeciesDto speciesDto, String code, String name, int ageMin, int ageMax, double wMin, double wMax) {
@@ -585,7 +660,7 @@ public class RpgDataStore {
     private ClientDto copyClient(Long id, ClientDto dto, String code) {
         return new ClientDto(id, code, dto.name().trim(), dto.contactName(), dto.phone(), dto.email(),
                 dto.address(), dto.city(), dto.state(), dto.postalCode(), dto.country(), dto.notes(),
-                active(dto.active()));
+                dto.isDefault(), active(dto.active()));
     }
 
     private StageDto copyStage(Long id, StageDto dto, String speciesCode) {
@@ -601,11 +676,76 @@ public class RpgDataStore {
     }
 
     private FormulaDto summary(FormulaDto dto) {
-        return new FormulaDto(dto.id(), dto.code(), dto.name(), dto.clientId(), dto.clientName(),
+        return new FormulaDto(dto.id(), dto.code(), dto.name(), dto.clientId(), dto.clientName(), dto.status(),
                 dto.speciesId(), dto.speciesCode(), dto.stageId(), dto.stageCode(), dto.animalAgeDays(),
                 dto.sex(), dto.breed(), dto.productionLevel(), dto.housing(), dto.environment(),
                 dto.batchWeightKg(), dto.totalCost(), dto.costPerKg(), dto.optimizationType(),
                 dto.solverStatus(), dto.objectiveValue(), dto.notes(), dto.createdAt(), null, null);
+    }
+
+    private ClientFormulasHdr toHeader(FormulaDto formula) {
+        BigDecimal lastPrice = formula.costPerKg() != null ? formula.costPerKg() : formula.totalCost();
+        return new ClientFormulasHdr(
+                formula.clientId(),
+                formula.id(),
+                formula.name(),
+                lastPrice,
+                formula.speciesId(),
+                formula.optimizationType()
+        );
+    }
+
+    private ClientDto resolveFormulaClient(Long clientId) {
+        if (clientId == null || clientId == 0) {
+            Long defaultId = defaultClientId();
+            if (defaultId == null) {
+                throw new BusinessException("Default client is not defined");
+            }
+            return getClient(defaultId);
+        }
+        return getClient(clientId);
+    }
+
+    private List<FormulaIngredientDto> snapshotIngredients(List<FormulaIngredientDto> rows) {
+        List<FormulaIngredientDto> snapshot = new ArrayList<>();
+        for (FormulaIngredientDto row : nvl(rows)) {
+            IngredientDto ingredient = getIngredient(row.ingredientId());
+            BigDecimal lastPrice = row.lastPrice() != null ? row.lastPrice() : ingredient.price();
+            BigDecimal priceUsed = row.priceUsed() != null ? row.priceUsed() : lastPrice;
+            snapshot.add(new FormulaIngredientDto(
+                    ingredient.id(),
+                    ingredient.code(),
+                    ingredient.name(),
+                    row.inclusionFrac(),
+                    row.inclusionPct() != null ? row.inclusionPct()
+                            : (row.inclusionFrac() == null ? null : row.inclusionFrac().multiply(BigDecimal.valueOf(100))),
+                    row.amountKg(),
+                    priceUsed,
+                    lastPrice,
+                    row.cost()
+            ));
+        }
+        return snapshot;
+    }
+
+    private void clearDefaultClients() {
+        for (ClientDto client : new ArrayList<>(clients.values())) {
+            if (Boolean.TRUE.equals(client.isDefault())) {
+                clients.put(client.id(), new ClientDto(
+                        client.id(), client.code(), client.name(), client.contactName(), client.phone(),
+                        client.email(), client.address(), client.city(), client.state(), client.postalCode(),
+                        client.country(), client.notes(), false, client.active()
+                ));
+            }
+        }
+    }
+
+    private Long defaultClientId() {
+        return clients.values().stream()
+                .filter(client -> Boolean.TRUE.equals(client.isDefault()))
+                .map(ClientDto::id)
+                .findFirst()
+                .orElse(null);
     }
 
     private void assertUniqueNutrientCode(String code, Long ignoreId) {

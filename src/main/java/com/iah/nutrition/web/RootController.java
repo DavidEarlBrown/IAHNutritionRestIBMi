@@ -29,7 +29,8 @@ public class RootController {
                 "species", "/api/species",
                 "requirements", "/api/requirements",
                 "optimize", "POST /api/optimize",
-                "formulas", "/api/formulas"
+                "formulas", "/api/formulas",
+                "clientFormulasHdr", "/api/client-formulas-hdr"
         );
     }
 }

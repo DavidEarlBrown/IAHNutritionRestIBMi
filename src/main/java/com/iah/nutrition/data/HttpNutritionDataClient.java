@@ -2,6 +2,7 @@ package com.iah.nutrition.data;
 
 import com.iah.nutrition.config.NutritionProperties;
 import com.iah.nutrition.dto.ClientDto;
+import com.iah.nutrition.dto.ClientFormulasHdr;
 import com.iah.nutrition.dto.FormulaDto;
 import com.iah.nutrition.dto.IngredNutDto;
 import com.iah.nutrition.dto.IngredientDto;
@@ -38,6 +39,7 @@ public class HttpNutritionDataClient implements NutritionDataClient {
     private static final ParameterizedTypeReference<List<StageDto>> STAGES = new ParameterizedTypeReference<>() { };
     private static final ParameterizedTypeReference<List<RequirementSetDto>> REQUIREMENTS = new ParameterizedTypeReference<>() { };
     private static final ParameterizedTypeReference<List<FormulaDto>> FORMULAS = new ParameterizedTypeReference<>() { };
+    private static final ParameterizedTypeReference<List<ClientFormulasHdr>> FORMULA_HDRS = new ParameterizedTypeReference<>() { };
 
     private final RestClient.Builder builder;
     private final NutritionProperties properties;
@@ -248,7 +250,7 @@ public class HttpNutritionDataClient implements NutritionDataClient {
     }
 
     @Override
-    public List<FormulaDto> listFormulas(Long clientId, Long speciesId, Long stageId) {
+    public List<FormulaDto> listFormulas(Long clientId, Long speciesId, Long stageId, String status) {
         return client().get()
                 .uri(uri -> {
                     var builder = uri.path("/formulas");
@@ -260,6 +262,9 @@ public class HttpNutritionDataClient implements NutritionDataClient {
                     }
                     if (stageId != null) {
                         builder.queryParam("stageId", stageId);
+                    }
+                    if (status != null && !status.isBlank()) {
+                        builder.queryParam("status", status);
                     }
                     return builder.build();
                 })
@@ -275,6 +280,25 @@ public class HttpNutritionDataClient implements NutritionDataClient {
     @Override
     public FormulaDto createFormula(FormulaDto dto) {
         return post("/formulas", dto, FormulaDto.class);
+    }
+
+    @Override
+    public List<ClientFormulasHdr> listClientFormulasHdr(Long clientId) {
+        return client().get()
+                .uri(uri -> {
+                    var builder = uri.path("/client-formulas-hdr");
+                    if (clientId != null) {
+                        builder.queryParam("clientId", clientId);
+                    }
+                    return builder.build();
+                })
+                .retrieve()
+                .body(FORMULA_HDRS);
+    }
+
+    @Override
+    public ClientFormulasHdr getClientFormulasHdr(Long formulaId) {
+        return client().get().uri("/client-formulas-hdr/{id}", formulaId).retrieve().body(ClientFormulasHdr.class);
     }
 
     private <T> T post(String path, Object body, Class<T> type) {

@@ -15,6 +15,11 @@ public record ClientDto(
         String postalCode,
         String country,
         String notes,
+        Boolean isDefault,
         Boolean active
 ) {
+    public ClientDto {
+        isDefault = Boolean.TRUE.equals(isDefault);
+        active = active == null || active;
+    }
 }
